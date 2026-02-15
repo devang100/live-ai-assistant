@@ -1,58 +1,134 @@
-# Live AI Assistant
+# 🤖 Live AI Assistant
 
-A production-ready AI chatbot with web search capabilities, conversational memory, and streaming responses.
+A production-ready AI chatbot with **web search capabilities**, **conversational memory**, and **streaming responses**. Built with Next.js 16, OpenAI GPT-4o, and Supabase.
 
-## 🚀 Features
+![Status](https://img.shields.io/badge/status-production--ready-green)
+![Next.js](https://img.shields.io/badge/Next.js-16.1.6-black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)
+![License](https://img.shields.io/badge/license-MIT-blue)
 
-✅ **Conversational Memory** - Remembers previous messages in the conversation  
-✅ **Streaming Responses** - Real-time AI responses with smooth animations  
-✅ **Modern UI** - Premium dark mode design with glassmorphism effects  
-✅ **Error Handling** - Graceful error handling with user-friendly messages  
-✅ **Responsive Design** - Works perfectly on desktop and mobile devices  
+## ✨ Features
 
-### 🔜 Coming Soon
-- Web Search Tool (Tavily/Serper integration)
-- Tool Decision Making (AI chooses when to search)
-- Database Integration (Supabase for persistent memory)
-- Source Citations
+### ✅ **Core Functionality**
+- 💬 **Real-time Chat** with OpenAI GPT-4o
+- 🌊 **Streaming Responses** for instant feedback
+- 🎨 **Premium Dark Mode UI** with glassmorphism
+- 📱 **Fully Responsive** design
 
-## 📋 Prerequisites
+### 🔥 **Advanced Features**
+- 🔍 **Web Search Integration** - AI automatically searches when needed
+- 🧠 **Tool Orchestration** - AI decides when to use search vs. knowledge
+- 📚 **Source Citations** - All web-sourced answers include references
+- 💾 **Database Integration** - Conversation persistence with Supabase
+- ⚡ **Edge Runtime** - Fast, globally distributed responses
+
+## 🚀 Quick Start
+
+### Prerequisites
 
 - Node.js 18+ installed
-- OpenAI API Key ([Get one here](https://platform.openai.com/api-keys))
+- OpenAI API Key ([Get one](https://platform.openai.com/api-keys))
+- Tavily API Key ([Get one](https://tavily.com))
+- Supabase Account ([Sign up](https://supabase.com))
 
-## 🛠️ Setup Instructions
+### Installation
 
-### 1. Install Dependencies
+1. **Clone the repository**
+```bash
+git clone https://github.com/devang100/live-ai-assistant.git
+cd live-ai-assistant
+```
 
+2. **Install dependencies**
 ```bash
 npm install
 ```
 
-### 2. Configure Environment Variables
+3. **Set up environment variables**
 
-Create a `.env.local` file in the root directory:
-
+Create `.env.local`:
 ```env
-OPENAI_API_KEY=sk-your-openai-api-key-here
+OPENAI_API_KEY=sk-your-openai-key-here
+TAVILY_API_KEY=tvly-your-tavily-key-here
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-supabase-anon-key
 ```
 
-### 3. Run Development Server
+4. **Set up database**
 
+- Go to your Supabase project
+- Open SQL Editor
+- Run the schema from `supabase-schema.sql`
+
+5. **Run development server**
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Open [http://localhost:3000](http://localhost:3000)
 
-### 4. Build for Production
+## 📋 API Keys Setup
 
-```bash
-npm run build
-npm start
+### OpenAI API Key
+1. Visit https://platform.openai.com/api-keys
+2. Create new secret key
+3. Add $5+ credits to your account
+4. Copy key to `.env.local`
+
+### Tavily API Key
+1. Visit https://tavily.com
+2. Sign up for free account
+3. Get API key from dashboard
+4. Copy to `.env.local`
+
+### Supabase Setup
+1. Create project at https://supabase.com
+2. Go to Settings → API
+3. Copy URL and anon key
+4. Run `supabase-schema.sql` in SQL Editor
+
+## 🏗️ Architecture
+
+```
+┌─────────────┐
+│   User UI   │
+└──────┬──────┘
+       │
+       ▼
+┌─────────────────┐
+│  Next.js API    │
+│  /api/chat      │
+└────────┬────────┘
+         │
+    ┌────┴────┐
+    ▼         ▼
+┌────────┐ ┌──────────┐
+│ OpenAI │ │  Tavily  │
+│ GPT-4o │ │  Search  │
+└────────┘ └──────────┘
+    │
+    ▼
+┌─────────────┐
+│  Supabase   │
+│  Database   │
+└─────────────┘
 ```
 
-## 🏗️ Project Structure
+## 🛠️ Tech Stack
+
+| Category | Technology |
+|----------|-----------|
+| **Framework** | Next.js 16 (App Router) |
+| **Language** | TypeScript 5.x |
+| **Styling** | Tailwind CSS v4 |
+| **AI** | OpenAI GPT-4o |
+| **Search** | Tavily API |
+| **Database** | Supabase (PostgreSQL) |
+| **Animations** | Framer Motion |
+| **Icons** | Lucide React |
+| **Deployment** | Vercel (recommended) |
+
+## 📁 Project Structure
 
 ```
 live-ai-assistant/
@@ -60,111 +136,139 @@ live-ai-assistant/
 │   ├── app/
 │   │   ├── api/
 │   │   │   └── chat/
-│   │   │       └── route.ts        # AI chat API endpoint
-│   │   ├── globals.css             # Global styles & theme
-│   │   ├── layout.tsx              # Root layout
-│   │   └── page.tsx                # Home page
+│   │   │       └── route.ts       # AI chat endpoint with tool calling
+│   │   ├── globals.css            # Global styles & theme
+│   │   ├── layout.tsx             # Root layout
+│   │   └── page.tsx               # Home page
 │   ├── components/
-│   │   └── chat-interface.tsx      # Main chat UI component
+│   │   └── chat-interface.tsx     # Main chat UI
 │   └── lib/
-│       └── utils.ts                # Utility functions
-├── .env.local                      # Environment variables (create this)
-├── .env.example                    # Environment template
-├── package.json
+│       ├── utils.ts               # Utility functions
+│       ├── search.ts              # Web search tool
+│       └── supabase.ts            # Database client
+├── supabase-schema.sql            # Database schema
+├── .env.local                     # Environment variables (create this)
+├── .env.example                   # Environment template
 └── README.md
 ```
 
-## 🎨 Tech Stack
+## 🎯 Key Features Explained
 
-- **Frontend**: Next.js 16 (App Router), React 19, TypeScript
-- **Styling**: Tailwind CSS v4, Framer Motion
-- **AI**: OpenAI GPT-4o, Vercel AI SDK
-- **Icons**: Lucide React
+### 1. **Tool Calling & Web Search**
 
-## 🔧 Available Scripts
+The AI automatically decides when to search the web:
 
-- `npm run dev` - Start development server
-- `npm run build` - Build for production
-- `npm start` - Start production server
-- `npm run lint` - Run ESLint
-
-## 📝 API Routes
-
-### POST `/api/chat`
-
-Handles chat messages and returns streaming AI responses.
-
-**Request Body:**
-```json
-{
-  "messages": [
-    { "role": "user", "content": "Hello!" }
-  ]
-}
+```typescript
+// User asks: "What's the latest news about AI?"
+// → AI calls search_web("latest AI news")
+// → Gets results from Tavily
+// → Provides answer with citations
 ```
 
-**Response:** Streaming text response from GPT-4o
+### 2. **Streaming Responses**
 
-## 🎯 Roadmap
+Real-time token-by-token streaming for better UX:
+- Instant feedback
+- Lower perceived latency
+- Professional feel
 
-### Phase 1: Core Chat (✅ Complete)
-- [x] Basic chat UI
-- [x] API integration with OpenAI
-- [x] Streaming responses
-- [x] Error handling
+### 3. **Database Persistence**
 
-### Phase 2: Memory System (🔜 Next)
-- [ ] Supabase integration
-- [ ] Conversation persistence
-- [ ] User sessions
+All conversations saved to Supabase:
+- Load previous chats
+- Search history
+- User sessions
 
-### Phase 3: Web Search (🔜 Planned)
-- [ ] Tavily/Serper API integration
-- [ ] Tool calling implementation
-- [ ] Source citations
+## 🧪 Testing
 
-### Phase 4: Advanced Features (🔮 Future)
-- [ ] Multi-modal support (images)
-- [ ] Voice input/output
-- [ ] Custom knowledge bases
-- [ ] Analytics dashboard
+### Test Web Search
+Ask questions that require current information:
+- "What's the latest news about SpaceX?"
+- "Who won the recent election?"
+- "What's the current price of Bitcoin?"
+
+### Test Regular Chat
+Ask general knowledge questions:
+- "Explain quantum computing"
+- "Write a poem about AI"
+- "Help me debug this code"
+
+## 🚀 Deployment
+
+### Deploy to Vercel (Recommended)
+
+1. **Push to GitHub** (already done!)
+
+2. **Import to Vercel**
+```bash
+# Or use Vercel CLI
+npm i -g vercel
+vercel
+```
+
+3. **Add environment variables** in Vercel dashboard
+
+4. **Deploy!**
+
+Your app will be live at `https://your-app.vercel.app`
+
+## 📊 Performance
+
+- ⚡ **Edge Runtime** - Global distribution
+- 🚀 **Streaming** - Instant first token
+- 💾 **Caching** - Optimized database queries
+- 📱 **Responsive** - Works on all devices
+
+## 🔒 Security
+
+- ✅ API keys in environment variables
+- ✅ `.env.local` excluded from Git
+- ✅ Row Level Security on Supabase
+- ✅ Input validation
+- ✅ Error handling
+
+## 🎓 What This Project Demonstrates
+
+### For Your Resume:
+✅ **AI Agent Architecture** - Tool orchestration & decision making  
+✅ **Real-time Web Search** - External API integration  
+✅ **Full-Stack Development** - Frontend + Backend + Database  
+✅ **Modern React Patterns** - Hooks, streaming, animations  
+✅ **TypeScript** - Type-safe development  
+✅ **Database Design** - Schema design & queries  
+✅ **Production Deployment** - Vercel, environment management  
+✅ **API Integration** - OpenAI, Tavily, Supabase  
 
 ## 🐛 Troubleshooting
 
-### Port 3000 already in use
-```bash
-# Windows
-taskkill /F /PID <process-id>
+### "Insufficient quota" error
+- Add credits to OpenAI account
+- Check billing at https://platform.openai.com/account/billing
 
-# Find the process ID
-netstat -ano | findstr :3000
-```
+### Search not working
+- Verify Tavily API key is correct
+- Check API key has credits
+- Look at browser console for errors
 
-### Module not found errors
-```bash
-# Clear cache and reinstall
-rm -rf node_modules .next
-npm install
-```
+### Database errors
+- Verify Supabase credentials
+- Check if schema was run
+- Ensure RLS policies are set
 
-### TypeScript errors
-```bash
-# Check for type errors
-npx tsc --noEmit
-```
+## 📝 License
 
-## 📄 License
-
-MIT License - feel free to use this project for learning or commercial purposes.
+MIT License - feel free to use for learning or commercial purposes.
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions welcome! Please open an issue or PR.
 
 ## 📧 Support
 
-For issues or questions, please open an issue on GitHub.
+For issues: [GitHub Issues](https://github.com/devang100/live-ai-assistant/issues)
 
 ---
 
-**Built with ❤️ using Next.js and OpenAI**
+**Built with ❤️ using Next.js, OpenAI, and Supabase**
+
+⭐ Star this repo if you found it helpful!

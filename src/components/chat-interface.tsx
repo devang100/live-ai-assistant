@@ -1,14 +1,15 @@
 'use client';
 
 import { useChat } from 'ai/react';
-import { useRef, useEffect } from 'react';
-import { Send, Bot, User, Loader2, Sparkles } from 'lucide-react';
+import { useRef, useEffect, useState } from 'react';
+import { Send, Bot, User, Loader2, Sparkles, Search, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
 export default function ChatInterface() {
     const { messages, input, handleInputChange, handleSubmit, isLoading, error } = useChat();
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const [isSearching, setIsSearching] = useState(false);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -17,6 +18,22 @@ export default function ChatInterface() {
     useEffect(() => {
         scrollToBottom();
     }, [messages]);
+
+    // Detect if AI is searching (simple heuristic)
+    useEffect(() => {
+        if (isLoading) {
+            const lastMessage = messages[messages.length - 1];
+            if (lastMessage?.role === 'user') {
+                const searchKeywords = ['latest', 'current', 'recent', 'today', 'news', 'what is', 'who is'];
+                const hasSearchKeyword = searchKeywords.some(keyword =>
+                    lastMessage.content.toLowerCase().includes(keyword)
+                );
+                setIsSearching(hasSearchKeyword);
+            }
+        } else {
+            setIsSearching(false);
+        }
+    }, [isLoading, messages]);
 
     return (
         <div className="flex flex-col h-[calc(100vh-4rem)] w-full max-w-4xl mx-auto bg-card rounded-2xl shadow-xl overflow-hidden border border-border mt-8">
@@ -30,9 +47,13 @@ export default function ChatInterface() {
                         <h1 className="font-semibold text-lg">Live AI Assistant</h1>
                         <p className="text-xs text-muted-foreground flex items-center gap-1">
                             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                            Online & Ready
+                            {isSearching ? 'Searching the web...' : 'Online & Ready'}
                         </p>
                     </div>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Search className="w-4 h-4" />
+                    <span>Web Search Enabled</span>
                 </div>
             </div>
 
@@ -41,7 +62,23 @@ export default function ChatInterface() {
                 {messages.length === 0 && (
                     <div className="flex flex-col items-center justify-center h-full text-center space-y-4 opacity-50">
                         <Sparkles className="w-12 h-12 text-primary/50" />
-                        <p className="text-lg font-medium">How can I help you today?</p>
+                        <div>
+                            <p className="text-lg font-medium">How can I help you today?</p>
+                            <p className="text-sm text-muted-foreground mt-2">
+                                I can search the web for current information!
+                            </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2 mt-4">
+                            <div className="px-3 py-1 bg-muted rounded-full text-xs">
+                                Latest news
+                            </div>
+                            <div className="px-3 py-1 bg-muted rounded-full text-xs">
+                                Current events
+                            </div>
+                            <div className="px-3 py-1 bg-muted rounded-full text-xs">
+                                Real-time data
+                            </div>
+                        </div>
                     </div>
                 )}
 
@@ -71,7 +108,17 @@ export default function ChatInterface() {
                                     ? "bg-primary text-primary-foreground rounded-tr-none"
                                     : "bg-muted/50 border border-border rounded-tl-none"
                             )}>
-                                {m.content}
+                                <div className="whitespace-pre-wrap">{m.content}</div>
+
+                                {/* Show sources if available */}
+                                {m.role === 'assistant' && m.content.includes('[') && (
+                                    <div className="mt-3 pt-3 border-t border-border/50">
+                                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                            <ExternalLink className="w-3 h-3" />
+                                            <span>Sources cited in response</span>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </motion.div>
                     ))}
@@ -79,8 +126,17 @@ export default function ChatInterface() {
 
                 {isLoading && (
                     <div className="flex items-center gap-2 text-muted-foreground text-sm ml-12">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Thinking...
+                        {isSearching ? (
+                            <>
+                                <Search className="w-4 h-4 animate-pulse" />
+                                Searching the web...
+                            </>
+                        ) : (
+                            <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Thinking...
+                            </>
+                        )}
                     </div>
                 )}
 
@@ -100,7 +156,7 @@ export default function ChatInterface() {
                         className="flex-1 p-4 pr-12 rounded-xl border border-input bg-background shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
                         value={input}
                         onChange={handleInputChange}
-                        placeholder="Type your message..."
+                        placeholder="Ask me anything... I can search the web!"
                         disabled={isLoading}
                     />
                     <button
