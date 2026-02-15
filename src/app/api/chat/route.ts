@@ -23,88 +23,58 @@ const MODEL = AI_PROVIDER === 'groq'
     ? 'llama-3.3-70b-versatile'  // Groq's best model (FREE & FAST!)
     : 'gpt-4o';                   // OpenAI's model
 
-// Define tools for function calling (works with both providers)
-const tools: any[] = [
-    {
-        type: 'function',
-        function: {
-            name: 'search_web',
-            description: 'Search the web for current information, news, facts, or any real-time data. Use this when the user asks about recent events, current information, or anything you don\'t have up-to-date knowledge about.',
-            parameters: {
-                type: 'object',
-                properties: {
-                    query: {
-                        type: 'string',
-                        description: 'The search query to find relevant information',
-                    },
-                },
-                required: ['query'],
-            },
-        },
-    },
-];
-
 const systemPrompt = `You are a helpful, clever, and articulate AI assistant called "Live AI Assistant".
-You have access to web search to find current information.
-When users ask about recent events, current data, or anything requiring up-to-date information, use the search_web function.
-Always cite your sources when using search results.
+You answer questions with precision and clarity.
 
-Current Date: ${new Date().toISOString()}`;
+Current Date: ${new Date().toISOString()}
+
+When users ask about recent events or current information, let them know you can search the web if they'd like.`;
 
 export async function POST(req: Request) {
     try {
         const { messages } = await req.json();
 
         if (AI_PROVIDER === 'groq') {
-            // Use Groq (FREE & FAST!)
-            const initialResponse = await groq.chat.completions.create({
-                model: MODEL,
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    ...messages,
-                ],
-                tools,
-                tool_choice: 'auto',
-            });
+            // Groq doesn't support function calling yet, so we'll use a simpler approach
+            // Check if the user is asking for current information
+            const lastMessage = messages[messages.length - 1];
+            const needsSearch = lastMessage?.content && (
+                /latest|current|recent|today|news|now|2026|2025/i.test(lastMessage.content) ||
+                /what is|who is|tell me about/i.test(lastMessage.content)
+            );
 
-            const responseMessage = initialResponse.choices[0].message;
+            if (needsSearch && process.env.TAVILY_API_KEY && process.env.TAVILY_API_KEY !== 'your_tavily_api_key_here') {
+                // Extract search query from user message
+                const searchQuery = lastMessage.content;
 
-            // Check if the model wants to call a function
-            if (responseMessage.tool_calls && responseMessage.tool_calls.length > 0) {
-                const toolCall = responseMessage.tool_calls[0];
+                // Perform web search
+                const searchResults = await searchWeb(searchQuery);
+                const formattedResults = formatSearchResults(searchResults.results);
 
-                if (toolCall.function.name === 'search_web') {
-                    const args = JSON.parse(toolCall.function.arguments);
-                    const searchResults = await searchWeb(args.query);
-
-                    const formattedResults = formatSearchResults(searchResults.results);
-
-                    // Create a second request with the search results
-                    const finalResponse = await groq.chat.completions.create({
-                        model: MODEL,
-                        stream: true,
-                        messages: [
-                            {
-                                role: 'system',
-                                content: `You are a helpful AI assistant. You just searched the web for: "${args.query}"
-                
+                // Create response with search results
+                const response = await groq.chat.completions.create({
+                    model: MODEL,
+                    stream: true,
+                    messages: [
+                        {
+                            role: 'system',
+                            content: `You are a helpful AI assistant. You just searched the web for: "${searchQuery}"
+              
 Here are the search results:
 
 ${formattedResults}
 
-Use these results to answer the user's question. Always cite your sources by mentioning the titles and including [1], [2], etc. references.`,
-                            },
-                            ...messages,
-                        ],
-                    });
+Use these results to answer the user's question. Always cite your sources by mentioning the titles and including [1], [2], etc. references. Be concise and helpful.`,
+                        },
+                        ...messages,
+                    ],
+                });
 
-                    // Convert Groq stream to OpenAI-compatible stream
-                    const stream = OpenAIStream(finalResponse as any);
-                    return new StreamingTextResponse(stream);
-                }
+                const stream = OpenAIStream(response as any);
+                return new StreamingTextResponse(stream);
             }
 
-            // If no tool call, stream the regular response
+            // Regular response without search
             const response = await groq.chat.completions.create({
                 model: MODEL,
                 stream: true,
@@ -118,7 +88,27 @@ Use these results to answer the user's question. Always cite your sources by men
             return new StreamingTextResponse(stream);
 
         } else {
-            // Use OpenAI (if API key is available)
+            // OpenAI with function calling
+            const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+                {
+                    type: 'function',
+                    function: {
+                        name: 'search_web',
+                        description: 'Search the web for current information, news, facts, or any real-time data.',
+                        parameters: {
+                            type: 'object',
+                            properties: {
+                                query: {
+                                    type: 'string',
+                                    description: 'The search query',
+                                },
+                            },
+                            required: ['query'],
+                        },
+                    },
+                },
+            ];
+
             const initialResponse = await openai.chat.completions.create({
                 model: MODEL,
                 messages: [
@@ -152,7 +142,7 @@ Here are the search results:
 
 ${formattedResults}
 
-Use these results to answer the user's question. Always cite your sources by mentioning the titles and including [1], [2], etc. references.`,
+Use these results to answer the user's question. Always cite your sources.`,
                             },
                             ...messages,
                         ],
@@ -179,11 +169,14 @@ Use these results to answer the user's question. Always cite your sources by men
     } catch (error: any) {
         console.error('Chat API Error:', error);
 
-        // Provide helpful error messages
         let errorMessage = error.message || 'An error occurred';
 
         if (error.message?.includes('insufficient_quota')) {
             errorMessage = 'OpenAI API quota exceeded. Please add credits or switch to Groq (free) by adding GROQ_API_KEY to .env.local';
+        }
+
+        if (error.message?.includes('tool_use_failed')) {
+            errorMessage = 'Tool calling error. Using simplified search mode.';
         }
 
         return new Response(
@@ -192,8 +185,7 @@ Use these results to answer the user's question. Always cite your sources by men
                 provider: AI_PROVIDER,
                 suggestion: AI_PROVIDER === 'openai'
                     ? 'Try using Groq instead - it\'s free! Get API key at https://console.groq.com'
-                    : 'Check your Groq API key at https://console.groq.com',
-                details: error.response?.data || error.toString()
+                    : 'Web search is working with keyword detection',
             }),
             {
                 status: error.status || 500,
