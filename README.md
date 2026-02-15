@@ -27,7 +27,9 @@ A production-ready AI chatbot with **web search capabilities**, **conversational
 ### Prerequisites
 
 - Node.js 18+ installed
-- OpenAI API Key ([Get one](https://platform.openai.com/api-keys))
+- **AI Provider (Choose one):**
+  - **Groq API Key** (FREE! Recommended) - [Get one](https://console.groq.com) - See `GROQ_SETUP.md`
+  - OR OpenAI API Key (Paid) - [Get one](https://platform.openai.com/api-keys)
 - Tavily API Key ([Get one](https://tavily.com))
 - Supabase Account ([Sign up](https://supabase.com))
 
