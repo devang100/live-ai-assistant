@@ -6,9 +6,6 @@ import { searchWeb, formatSearchResults } from '@/lib/search';
 export const runtime = 'edge';
 export const maxDuration = 30;
 
-// Choose AI provider based on available API keys
-const AI_PROVIDER = process.env.GROQ_API_KEY ? 'groq' : 'openai';
-
 // Initialize clients
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY || '',
@@ -18,179 +15,114 @@ const groq = new Groq({
     apiKey: process.env.GROQ_API_KEY || '',
 });
 
-// Model selection based on provider
-const MODEL = AI_PROVIDER === 'groq'
-    ? 'llama-3.3-70b-versatile'  // Groq's best model (FREE & FAST!)
-    : 'gpt-4o';                   // OpenAI's model
+// Helper to determine provider and model
+const getProviderAndModel = () => {
+    const useGroq = !!process.env.GROQ_API_KEY;
+    return {
+        provider: useGroq ? 'groq' : 'openai',
+        model: useGroq ? 'llama-3.3-70b-versatile' : 'gpt-4o',
+        client: useGroq ? groq : openai
+    };
+};
 
-const systemPrompt = `You are a helpful, clever, and articulate AI assistant called "Live AI Assistant".
+const getSystemPrompt = (searchResults?: string) => {
+    const now = new Date();
+    const dateString = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const timeString = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+    let prompt = `You are a helpful, clever, and articulate AI assistant called "Live AI Assistant".
 You answer questions with precision and clarity.
 
-Current Date: ${new Date().toISOString()}
+Current Date: ${dateString} at ${timeString}
 
-When users ask about recent events or current information, let them know you can search the web if they'd like.`;
+Instructions:
+1. Be concise and helpful.
+2. Use Markdown formatting (bold, italic, lists, code blocks) to make your responses easy to read.
+3. If you used search results, ALWAYS cite your sources using [1], [2], etc.`;
+
+    if (searchResults) {
+        prompt += `\n\nCONTEXT FROM WEB SEARCH:
+${searchResults}
+
+Use the above search results to answer the user's question accurately.`;
+    } else {
+        prompt += `\n\nIf the user asks about recent events, news, or real-time information that you don't know, inform them that you can search the web for them (or they can ask you to "search for X").`;
+    }
+
+    return prompt;
+};
+
+// Improved search intent detection
+const shouldSearch = (query: string): boolean => {
+    const searchKeywords = [
+        /latest/i, /current/i, /recent/i, /today/i, /news/i, /now/i,
+        /what is/i, /who is/i, /tell me about/i, /price of/i, /weather/i,
+        /search for/i, /google/i, /find/i
+    ];
+
+    // Check if the query asks for search explicitly or contains time-sensitive keywords
+    return searchKeywords.some(pattern => pattern.test(query));
+};
 
 export async function POST(req: Request) {
     try {
         const { messages } = await req.json();
+        const lastMessage = messages[messages.length - 1];
+        const userQuery = lastMessage?.content || '';
 
-        if (AI_PROVIDER === 'groq') {
-            // Groq doesn't support function calling yet, so we'll use a simpler approach
-            // Check if the user is asking for current information
-            const lastMessage = messages[messages.length - 1];
-            const needsSearch = lastMessage?.content && (
-                /latest|current|recent|today|news|now|2026|2025/i.test(lastMessage.content) ||
-                /what is|who is|tell me about/i.test(lastMessage.content)
-            );
+        const { provider, model, client } = getProviderAndModel();
 
-            if (needsSearch && process.env.TAVILY_API_KEY && process.env.TAVILY_API_KEY !== 'your_tavily_api_key_here') {
-                // Extract search query from user message
-                const searchQuery = lastMessage.content;
+        let systemContent = getSystemPrompt();
 
+        // Handle Search Logic
+        if (shouldSearch(userQuery) && process.env.TAVILY_API_KEY && process.env.TAVILY_API_KEY !== 'your_tavily_api_key_here') {
+            try {
                 // Perform web search
-                const searchResults = await searchWeb(searchQuery);
+                const searchResults = await searchWeb(userQuery);
                 const formattedResults = formatSearchResults(searchResults.results);
 
-                // Create response with search results
-                const response = await groq.chat.completions.create({
-                    model: MODEL,
-                    stream: true,
-                    messages: [
-                        {
-                            role: 'system',
-                            content: `You are a helpful AI assistant. You just searched the web for: "${searchQuery}"
-              
-Here are the search results:
-
-${formattedResults}
-
-Use these results to answer the user's question. Always cite your sources by mentioning the titles and including [1], [2], etc. references. Be concise and helpful.`,
-                        },
-                        ...messages,
-                    ],
-                });
-
-                const stream = OpenAIStream(response as any);
-                return new StreamingTextResponse(stream);
+                // Update system prompt with search context
+                systemContent = getSystemPrompt(formattedResults);
+            } catch (searchError) {
+                console.error('Search failed:', searchError);
+                // Continue without search results, systemPrompt will just be the default
             }
-
-            // Regular response without search
-            const response = await groq.chat.completions.create({
-                model: MODEL,
-                stream: true,
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    ...messages,
-                ],
-            });
-
-            const stream = OpenAIStream(response as any);
-            return new StreamingTextResponse(stream);
-
-        } else {
-            // OpenAI with function calling
-            const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
-                {
-                    type: 'function',
-                    function: {
-                        name: 'search_web',
-                        description: 'Search the web for current information, news, facts, or any real-time data.',
-                        parameters: {
-                            type: 'object',
-                            properties: {
-                                query: {
-                                    type: 'string',
-                                    description: 'The search query',
-                                },
-                            },
-                            required: ['query'],
-                        },
-                    },
-                },
-            ];
-
-            const initialResponse = await openai.chat.completions.create({
-                model: MODEL,
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    ...messages,
-                ],
-                tools,
-                tool_choice: 'auto',
-            });
-
-            const responseMessage = initialResponse.choices[0].message;
-
-            if (responseMessage.tool_calls && responseMessage.tool_calls.length > 0) {
-                const toolCall = responseMessage.tool_calls[0];
-
-                if (toolCall.function.name === 'search_web') {
-                    const args = JSON.parse(toolCall.function.arguments);
-                    const searchResults = await searchWeb(args.query);
-
-                    const formattedResults = formatSearchResults(searchResults.results);
-
-                    const finalResponse = await openai.chat.completions.create({
-                        model: MODEL,
-                        stream: true,
-                        messages: [
-                            {
-                                role: 'system',
-                                content: `You are a helpful AI assistant. You just searched the web for: "${args.query}"
-                
-Here are the search results:
-
-${formattedResults}
-
-Use these results to answer the user's question. Always cite your sources.`,
-                            },
-                            ...messages,
-                        ],
-                    });
-
-                    const stream = OpenAIStream(finalResponse);
-                    return new StreamingTextResponse(stream);
-                }
-            }
-
-            const response = await openai.chat.completions.create({
-                model: MODEL,
-                stream: true,
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    ...messages,
-                ],
-            });
-
-            const stream = OpenAIStream(response);
-            return new StreamingTextResponse(stream);
         }
+
+        // Prepare messages for the LLM
+        const completionMessages = [
+            { role: 'system', content: systemContent },
+            ...messages
+        ];
+
+        // Call the AI Provider
+        const response = await (client as any).chat.completions.create({
+            model: model,
+            stream: true,
+            messages: completionMessages as any, // Type casting to satisfy generic SDK types
+            temperature: 0.7,
+            max_tokens: 1024,
+        });
+
+        // handle stream
+        const stream = OpenAIStream(response as any);
+        return new StreamingTextResponse(stream);
 
     } catch (error: any) {
         console.error('Chat API Error:', error);
 
         let errorMessage = error.message || 'An error occurred';
-
         if (error.message?.includes('insufficient_quota')) {
-            errorMessage = 'OpenAI API quota exceeded. Please add credits or switch to Groq (free) by adding GROQ_API_KEY to .env.local';
+            errorMessage = 'API quota exceeded. Please check your API keys.';
         }
 
-        if (error.message?.includes('tool_use_failed')) {
-            errorMessage = 'Tool calling error. Using simplified search mode.';
-        }
+        const suggestion = !process.env.GROQ_API_KEY
+            ? 'Tip: Add a GROQ_API_KEY to .env.local for free, fast inference.'
+            : '';
 
         return new Response(
-            JSON.stringify({
-                error: errorMessage,
-                provider: AI_PROVIDER,
-                suggestion: AI_PROVIDER === 'openai'
-                    ? 'Try using Groq instead - it\'s free! Get API key at https://console.groq.com'
-                    : 'Web search is working with keyword detection',
-            }),
-            {
-                status: error.status || 500,
-                headers: { 'Content-Type': 'application/json' }
-            }
+            JSON.stringify({ error: errorMessage, suggestion }),
+            { status: 500, headers: { 'Content-Type': 'application/json' } }
         );
     }
 }

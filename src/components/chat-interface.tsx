@@ -5,6 +5,8 @@ import { useRef, useEffect, useState } from 'react';
 import { Send, Bot, User, Loader2, Sparkles, Search, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 export default function ChatInterface() {
     const { messages, input, handleInputChange, handleSubmit, isLoading, error } = useChat();
@@ -24,7 +26,7 @@ export default function ChatInterface() {
         if (isLoading) {
             const lastMessage = messages[messages.length - 1];
             if (lastMessage?.role === 'user') {
-                const searchKeywords = ['latest', 'current', 'recent', 'today', 'news', 'what is', 'who is'];
+                const searchKeywords = ['latest', 'current', 'recent', 'today', 'news', 'what is', 'who is', 'price', 'weather'];
                 const hasSearchKeyword = searchKeywords.some(keyword =>
                     lastMessage.content.toLowerCase().includes(keyword)
                 );
@@ -46,8 +48,8 @@ export default function ChatInterface() {
                     <div>
                         <h1 className="font-semibold text-lg">Live AI Assistant</h1>
                         <p className="text-xs text-muted-foreground flex items-center gap-1">
-                            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                            {isSearching ? 'Searching the web...' : 'Online & Ready'}
+                            <span className={`w-2 h-2 rounded-full ${isLoading ? 'bg-green-500 animate-pulse' : 'bg-green-500'}`} />
+                            {isSearching ? 'Searching the web...' : (isLoading ? 'Thinking...' : 'Online & Ready')}
                         </p>
                     </div>
                 </div>
@@ -91,7 +93,7 @@ export default function ChatInterface() {
                             exit={{ opacity: 0, scale: 0.95 }}
                             transition={{ duration: 0.3 }}
                             className={cn(
-                                "flex items-start gap-4 max-w-[80%]",
+                                "flex items-start gap-4 max-w-[85%]", // Increased max-width for markdown content
                                 m.role === 'user' ? "ml-auto flex-row-reverse" : "mr-auto"
                             )}
                         >
@@ -103,15 +105,31 @@ export default function ChatInterface() {
                             </div>
 
                             <div className={cn(
-                                "p-4 rounded-2xl text-sm leading-relaxed shadow-sm",
+                                "p-4 rounded-2xl text-sm leading-relaxed shadow-sm w-full overflow-hidden",
                                 m.role === 'user'
                                     ? "bg-primary text-primary-foreground rounded-tr-none"
                                     : "bg-muted/50 border border-border rounded-tl-none"
                             )}>
-                                <div className="whitespace-pre-wrap">{m.content}</div>
+                                {/* User messages are plain text usually, but markdown is fine too */}
+                                <div className={cn(
+                                    "prose dark:prose-invert prose-sm max-w-none break-words",
+                                    m.role === 'user' ? "text-primary-foreground prose-p:text-primary-foreground prose-a:text-white" : ""
+                                )}>
+                                    <ReactMarkdown
+                                        remarkPlugins={[remarkGfm]}
+                                        components={{
+                                            a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" className="underline font-medium hover:opacity-80" />,
+                                            // Ensure code blocks don't overflow
+                                            pre: ({ node, ...props }) => <pre {...props} className="bg-black/10 dark:bg-black/30 p-2 rounded-lg overflow-x-auto" />,
+                                            code: ({ node, ...props }) => <code {...props} className="bg-black/5 dark:bg-white/10 px-1 rounded font-mono text-xs" />
+                                        }}
+                                    >
+                                        {m.content}
+                                    </ReactMarkdown>
+                                </div>
 
-                                {/* Show sources if available */}
-                                {m.role === 'assistant' && m.content.includes('[') && (
+                                {/* Show sources if available and detected */}
+                                {m.role === 'assistant' && (m.content.includes('[1]') || m.content.includes('Sources:')) && (
                                     <div className="mt-3 pt-3 border-t border-border/50">
                                         <div className="flex items-center gap-1 text-xs text-muted-foreground">
                                             <ExternalLink className="w-3 h-3" />
